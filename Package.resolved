@@ -1,0 +1,15 @@
+{
+  "originHash" : "df5cc1e05581e1ce26170f5e2407ab6a679a5dfd2fb162e67eaf47681bee4c5f",
+  "pins" : [
+    {
+      "identity" : "ziparchive",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ZipArchive/ZipArchive.git",
+      "state" : {
+        "revision" : "df35718ea19a94e015b91dc4881dee028ce4cdba",
+        "version" : "2.6.0"
+      }
+    }
+  ],
+  "version" : 3
+}
