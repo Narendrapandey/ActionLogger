@@ -15,4 +15,4 @@ ActionLogger is a Swift-based library designed to log user actions within your a
 To include `ActionLogger` in your project, add the following dependency to your `Package.swift` file:
 
 ```swift
-.package(url: "https://github.com/Narendrapandey/ActionLogger.git", from: "1.0.0")
+.package(url: "https://github.com/Narendrapandey/ActionLogger.git", .branch("main"))
