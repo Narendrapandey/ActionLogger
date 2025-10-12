@@ -14,15 +14,13 @@ import Foundation
 public actor RecordingManager {
     
     // MARK: - Singleton
-    static let shared = RecordingManager()
+    public static let shared = RecordingManager()
     private let logger = Logger(subsystem: "com.ActionLogger.spm", category: "ActionLogger")
     
     // MARK: - Properties
     private let fileManager = FileManager.default
     private let baseURL: URL
-    
     private let baseFolderName = "Recording"
-    private let subfolders = ["Responses", "View Controllers", "Database Logs", "UITests"]
     
     init() {
         self.baseURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -44,12 +42,6 @@ public actor RecordingManager {
     
     // MARK: - Setup
     private func createBaseDirectories() {
-        for folder in subfolders {
-            let directory = baseURL.appendingPathComponent(folder)
-            if !fileManager.fileExists(atPath: directory.path) {
-                try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-            }
-        }
         log("App Recording Directory: \(baseURL.path)", type: .debug)
     }
     
@@ -101,8 +93,9 @@ extension RecordingManager {
         headers: [String: String]?,
         response: Any?,
         responseDate: Date,
-        statusCode: Int
-    ) {
+        statusCode: Int,
+        error: String? = nil
+    ) async {
         // Ensure Responses folder exists
         let folderURL = ensureFolderExists("Responses")
         let safeApiName = safeFilename(apiName)
@@ -174,6 +167,10 @@ extension RecordingManager {
             }
         }
         
+        if let error = error, !error.isEmpty {
+            content += "Error:\n\(error)\n\n"
+        }
+        
         // Write to file
         do {
             try content.write(to: fileURL, atomically: true, encoding: .utf8)
@@ -184,7 +181,7 @@ extension RecordingManager {
         }
     }
     
-    public func logDatabaseResponse(dbName: String, predicate: NSPredicate?, limit: Int?, count: Int, response: Any?) {
+    public func logDatabaseResponse(dbName: String, predicate: NSPredicate?, limit: Int?, count: Int, response: Any?) async {
         let folderURL = ensureFolderExists("Database Logs")
         let safeDbName = safeFilename(dbName)
         let filename = "\(timestamp())_\(safeDbName).txt"
@@ -245,10 +242,10 @@ struct AnyEncodable: Encodable {
 }
 
 
-
-// MARK: - App Actions
+// MARK: - App Actions -
 public extension RecordingManager {
     func logNavigation(_ description: String, title: String) {
+        let _ = ensureFolderExists("View Controllers")
         
         let content = """
         
@@ -262,7 +259,55 @@ public extension RecordingManager {
     }
     
     
-    func logUITestAction(viewType: ViewType, identifier: String, into: String? = nil) {
+    func logChatEmit(message: String, event: String, parameters: [String: Any]) {
+        
+        let _ = ensureFolderExists("Chat")
+        
+        let content = """
+        
+        Timestamp: \(Date())
+        Event: \(event)
+        Parameters: \(parameters)
+        Message: \(message)
+        -------------------------
+        """
+        
+        writeAppend(content, to: "Chat", named: "ChatAllLogs.txt")
+    }
+    
+    func logChatResponse(response: [Any]? = nil, event: String, error: String? = nil) {
+        
+        let folderURL = ensureFolderExists("Chat")
+        let safeApiName = safeFilename(event)
+        let filename = "\(timestamp())_\(safeApiName).txt"
+        let fileURL = folderURL.appendingPathComponent(filename)
+        
+        // Date formatter for milliseconds precision
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        
+        // Build log content dynamically
+        var content = "Event: \(event)\nTimestamp: \(formatter.string(from: Date()))\n\n"
+        
+        if let response = response, !response.isEmpty {
+            content += "Response:\n\(response)\n\n"
+        }
+        
+        if let error = error, !error.isEmpty {
+            content += "Error:\n\(error)\n\n"
+        }
+        
+        do {
+            try content.write(to: fileURL, atomically: true, encoding: .utf8)
+            log("Chat Response logged at: \(fileURL.path)", type: .debug)
+        } catch {
+            log("Failed to log chat response: \(error.localizedDescription)", type: .error)
+        }
+    }
+    
+    func logUITestAction(viewType: ViewType, identifier: String, into: String? = nil) async {
+        let _ = ensureFolderExists("UITests")
         let content = getCommandContent(for: viewType, identifier: identifier, into: into)
         writeAppend(content, to: "UITests", named: "UITestsLogs.txt")
     }
