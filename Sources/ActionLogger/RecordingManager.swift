@@ -275,6 +275,22 @@ public extension RecordingManager {
         writeAppend(content, to: "Chat", named: "ChatAllLogs.txt")
     }
     
+    func logAppEvent(_ message: String) {
+        // Ensure folder exists
+        _ = ensureFolderExists("AppLogs")
+        
+        // Prepare log entry
+        let logEntry = """
+        
+        Timestamp: \(Date())
+        Message: \(message)
+        ----------------------------------------
+        """
+        
+        // Append to log file
+        writeAppend(logEntry, to: "AppLogs", named: "AppActivityLog.txt")
+    }
+    
     func logChatResponse(response: [Any]? = nil, event: String, error: String? = nil) {
         
         let folderURL = ensureFolderExists("Chat")
