@@ -351,37 +351,46 @@ public extension RecordingManager {
 public extension RecordingManager {
     
     func exportAllRecordings(from viewController: UIViewController, password: String? = nil) async {
+        // Snapshot Sendable values up front
+        let baseURL = self.baseURL
         let zipURL = baseURL.appendingPathExtension("zip")
+        let basePath = baseURL.path
+        let zipPath = zipURL.path
         
-        // Remove old zip if it exists
-        try? fileManager.removeItem(at: zipURL)
-        
-        let success: Bool
-        if let password = password {
-            // Create password-protected ZIP
-            success = SSZipArchive.createZipFile(
-                atPath: zipURL.path,
-                withContentsOfDirectory: baseURL.path,
-                withPassword: password
-            )
-        } else {
-            // Create normal ZIP
-            success = SSZipArchive.createZipFile(
-                atPath: zipURL.path,
-                withContentsOfDirectory: baseURL.path
-            )
-        }
-        
-        await MainActor.run {
-            if success {
-                let activityVC = UIActivityViewController(activityItems: [zipURL], applicationActivities: nil)
-                viewController.present(activityVC, animated: true)
-            } else {
-                log("Failed to create ZIP file", type: .error)
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                // Use a fresh local FileManager to avoid capturing the actor's instance
+                let fm = FileManager()
+                try? fm.removeItem(at: zipURL)
+                
+                let success: Bool
+                if let password = password {
+                    success = SSZipArchive.createZipFile(
+                        atPath: zipPath,
+                        withContentsOfDirectory: basePath,
+                        withPassword: password
+                    )
+                } else {
+                    success = SSZipArchive.createZipFile(
+                        atPath: zipPath,
+                        withContentsOfDirectory: basePath
+                    )
+                }
+                
+                Task { @MainActor in
+                    if success {
+                        let activityVC = UIActivityViewController(activityItems: [zipURL], applicationActivities: nil)
+                        viewController.present(activityVC, animated: true)
+                    } else {
+                        // Call nonisolated logger method to avoid capturing actor state
+                        self.log("Failed to create ZIP file", type: .error)
+                    }
+                    continuation.resume()
+                }
             }
         }
-        
     }
+
 }
 
 
