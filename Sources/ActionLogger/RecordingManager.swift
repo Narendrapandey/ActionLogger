@@ -181,6 +181,30 @@ extension RecordingManager {
         }
     }
     
+    public func logMetrics(apiURL: String, logs: String) async {
+        // Ensure Metrics folder exists
+        let folderURL = ensureFolderExists("Metrics")
+        
+        // Extract last path component
+        let lastComponent = URL(string: apiURL)?.lastPathComponent.isEmpty == false ?
+        URL(string: apiURL)?.lastPathComponent ?? "unknown" :
+        "unknown"
+        
+        let safeName = safeFilename(lastComponent)
+        
+        // filename: api + timestamp
+        let filename = "\(timestamp())_\(safeName).txt"
+        let fileURL = folderURL.appendingPathComponent(filename)
+        
+        do {
+            try logs.write(to: fileURL, atomically: true, encoding: .utf8)
+            log("Metrics logged at: \(fileURL.path)", type: .debug)
+            
+        } catch {
+            log("Failed to log metrics: \(error.localizedDescription)", type: .error)
+        }
+    }
+    
     public func logDatabaseResponse(dbName: String, predicate: NSPredicate?, limit: Int?, count: Int, response: Any?) async {
         let folderURL = ensureFolderExists("Database Logs")
         let safeDbName = safeFilename(dbName)
