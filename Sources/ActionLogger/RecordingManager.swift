@@ -30,11 +30,11 @@ public actor RecordingManager {
     
     private var formatter: DateFormatter {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH:mm:ss.SSS"
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss-SSS"
         formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
         return formatter
     }
-    
     
     private nonisolated func log(_ message: String, type: OSLogType) {
         logger.log(level: type, "\(message)")
@@ -99,7 +99,10 @@ extension RecordingManager {
         // Ensure Responses folder exists
         let folderURL = ensureFolderExists("Responses")
         let safeApiName = safeFilename(apiName)
-        let filename = "\(timestamp())_\(safeApiName).txt"
+       
+        let statusLabel = (200...299).contains(statusCode) ? "SUCCESS" : "FAIL"
+        let filename = "\(timestamp())_\(statusLabel)_SC\(statusCode)_\(safeApiName).txt"
+
         let fileURL = folderURL.appendingPathComponent(filename)
         
         // Date formatter for milliseconds precision
