@@ -38,6 +38,9 @@ public actor RecordingManager {
     
     private nonisolated func log(_ message: String, type: OSLogType) {
         logger.log(level: type, "\(message)")
+        Task {
+            await logAppEvent(message)
+        }
     }
     
     // MARK: - Setup
@@ -94,15 +97,16 @@ extension RecordingManager {
         response: Any?,
         responseDate: Date,
         statusCode: Int,
-        error: String? = nil
+        error: String? = nil,
+        appVersion: String
     ) async {
         // Ensure Responses folder exists
         let folderURL = ensureFolderExists("Responses")
         let safeApiName = safeFilename(apiName)
-       
+        
         let statusLabel = (200...299).contains(statusCode) ? "SUCCESS" : "FAIL"
         let filename = "\(timestamp())_\(statusLabel)_SC\(statusCode)_\(safeApiName).txt"
-
+        
         let fileURL = folderURL.appendingPathComponent(filename)
         
         // Date formatter for milliseconds precision
@@ -125,7 +129,8 @@ extension RecordingManager {
         Request Time: \(requestTimestamp)
         Response Time: \(responseTimestamp)
         Duration: \(durationString)
-        
+        App Version: \(appVersion)
+
         """
         
         // Log headers
@@ -377,16 +382,19 @@ public extension RecordingManager {
 // MARK: - Export as ZIP
 public extension RecordingManager {
     
-    func exportAllRecordings(from viewController: UIViewController, password: String? = nil) async {
-        // Snapshot Sendable values up front
+    func exportAllRecordings(
+        from viewController: UIViewController,
+        password: String? = nil
+    ) async -> URL? {
+        
         let baseURL = self.baseURL
         let zipURL = baseURL.appendingPathExtension("zip")
         let basePath = baseURL.path
         let zipPath = zipURL.path
         
-        await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                // Use a fresh local FileManager to avoid capturing the actor's instance
+                
                 let fm = FileManager()
                 try? fm.removeItem(at: zipURL)
                 
@@ -405,21 +413,59 @@ public extension RecordingManager {
                 }
                 
                 Task { @MainActor in
-                    if success {
-                        let activityVC = UIActivityViewController(activityItems: [zipURL], applicationActivities: nil)
-                        viewController.present(activityVC, animated: true)
-                    } else {
-                        // Call nonisolated logger method to avoid capturing actor state
+                    guard success else {
                         self.log("Failed to create ZIP file", type: .error)
+                        continuation.resume(returning: nil)
+                        return
                     }
-                    continuation.resume()
+                    
+                    let activityVC = UIActivityViewController(
+                        activityItems: [zipURL],
+                        applicationActivities: nil
+                    )
+                    
+                    activityVC.completionWithItemsHandler = { _, completed, _, error in
+                        if let error {
+                            self.log("Log export share failed: \(error.localizedDescription)", type: .error)
+                            continuation.resume(returning: nil)
+                            return
+                        }
+                        
+                        continuation.resume(returning: completed ? zipURL : nil)
+                    }
+                    
+                    viewController.present(activityVC, animated: true)
                 }
             }
         }
     }
-
+    
+    func deleteAllLogsAndZip(zipURL: URL) {
+        let fm = FileManager()
+        
+        do {
+            // Delete folders
+            let contents = try fm.contentsOfDirectory(
+                at: baseURL,
+                includingPropertiesForKeys: nil
+            )
+            
+            for item in contents where item != zipURL {
+                try? fm.removeItem(at: item)
+            }
+            
+            // Delete ZIP explicitly
+            if fm.fileExists(atPath: zipURL.path) {
+                try fm.removeItem(at: zipURL)
+            }
+            
+            log("All logs and ZIP deleted successfully", type: .info)
+            
+        } catch {
+            log("Cleanup failed: \(error.localizedDescription)", type: .error)
+        }
+    }
 }
-
 
 public extension RecordingManager {
     
