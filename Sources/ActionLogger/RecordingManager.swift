@@ -98,7 +98,8 @@ extension RecordingManager {
         responseDate: Date,
         statusCode: Int,
         error: String? = nil,
-        appVersion: String
+        appVersion: String,
+        hmacDebugLog: String? = nil
     ) async {
         // Ensure Responses folder exists
         let folderURL = ensureFolderExists("Responses")
@@ -141,6 +142,10 @@ extension RecordingManager {
             } else {
                 content += "\nHeaders:\n\(headers)\n"
             }
+        }
+        
+        if let hmacDebugLog, !hmacDebugLog.isEmpty {
+            content += "\nHMAC Debug Info:\n\(hmacDebugLog)\n"
         }
         
         // Mask sensitive parameters
