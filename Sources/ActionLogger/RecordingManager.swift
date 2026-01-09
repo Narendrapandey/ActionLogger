@@ -22,6 +22,21 @@ public actor RecordingManager {
     private let baseURL: URL
     private let baseFolderName = "Recording"
     
+    // MARK: - Sensitive Data Sanitizer (GLOBAL)
+    
+    private let sensitiveSubstrings = [
+        "password",
+        "passcode",
+        "pin",
+        "secret",
+        "token",
+        "authorization",
+        "otp",
+        "signature",
+        "api-key",
+        "x-api-key"
+    ]
+    
     init() {
         self.baseURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
             .appendingPathComponent(baseFolderName)
@@ -61,6 +76,30 @@ public actor RecordingManager {
             log("Failed to write file: \(error.localizedDescription)", type: .error)
         }
     }
+    
+    private func sanitize(_ value: Any) -> Any {
+        
+        // Dictionary
+        if var dict = value as? [String: Any] {
+            for (key, val) in dict {
+                let lowerKey = key.lowercased()
+                if sensitiveSubstrings.contains(where: lowerKey.contains) {
+                    dict[key] = "*******"
+                } else {
+                    dict[key] = sanitize(val)
+                }
+            }
+            return dict
+        }
+        
+        // Array
+        if let array = value as? [Any] {
+            return array.map { sanitize($0) }
+        }
+        
+        // Primitive
+        return value
+    }
 }
 
 // MARK: - API Logging
@@ -93,13 +132,11 @@ extension RecordingManager {
         _ apiName: String,
         parameters: [String: Any]?,
         requestTime: Date,
-        headers: [String: String]?,
         response: Any?,
         responseDate: Date,
         statusCode: Int,
         error: String? = nil,
-        appVersion: String,
-        hmacDebugLog: String? = nil
+        appVersion: String
     ) async {
         // Ensure Responses folder exists
         let folderURL = ensureFolderExists("Responses")
@@ -131,29 +168,10 @@ extension RecordingManager {
         Response Time: \(responseTimestamp)
         Duration: \(durationString)
         App Version: \(appVersion)
-
+        
         """
         
-        // Log headers
-        if let headers = headers {
-            if let jsonData = try? JSONSerialization.data(withJSONObject: headers, options: .prettyPrinted),
-               let jsonString = String(data: jsonData, encoding: .utf8) {
-                content += "\nHeaders:\n\(jsonString)\n"
-            } else {
-                content += "\nHeaders:\n\(headers)\n"
-            }
-        }
-        
-        if let hmacDebugLog, !hmacDebugLog.isEmpty {
-            content += "\nHMAC Debug Info:\n\(hmacDebugLog)\n"
-        }
-        
-        // Mask sensitive parameters
-        var sanitizedParams = parameters ?? [:]
-        let sensitiveKeys = ["password", "old_password", "new_password"]
-        for key in sensitiveKeys where sanitizedParams.keys.contains(key) {
-            sanitizedParams[key] = "***"
-        }
+        let sanitizedParams = parameters.map { sanitize($0) } as? [String: Any] ?? [:]
         
         // Log parameters
         if !sanitizedParams.isEmpty {
@@ -168,15 +186,21 @@ extension RecordingManager {
         // Log response
         if let response = response {
             content += "\nResponse:\n"
-            if JSONSerialization.isValidJSONObject(response) {
-                if let jsonData = try? JSONSerialization.data(withJSONObject: response, options: .prettyPrinted),
+            
+            let sanitizedResponse = sanitize(response)
+            
+            if JSONSerialization.isValidJSONObject(sanitizedResponse) {
+                if let jsonData = try? JSONSerialization.data(
+                    withJSONObject: sanitizedResponse,
+                    options: .prettyPrinted
+                ),
                    let jsonString = String(data: jsonData, encoding: .utf8) {
                     content += "\(jsonString)\n"
                 } else {
-                    content += "\(response)\n"
+                    content += "\(sanitizedResponse)\n"
                 }
             } else {
-                content += "\(response)\n"
+                content += "\(sanitizedResponse)\n"
             }
         }
         
@@ -234,10 +258,12 @@ extension RecordingManager {
         content += "Predicate: \(predicate?.predicateFormat ?? "None")\n\n"
         
         if let response = response {
-            if let jsonString = encodeToJSONString(response) {
+            let sanitizedResponse = sanitize(response)
+            
+            if let jsonString = encodeToJSONString(sanitizedResponse) {
                 content += "Response (JSON):\n\(jsonString)\n\n"
             } else {
-                content += "Response:\n\(response)\n\n"
+                content += "Response:\n\(sanitizedResponse)\n\n"
             }
         }
         
@@ -300,11 +326,13 @@ public extension RecordingManager {
         
         let _ = ensureFolderExists("Chat")
         
+        let sanitizedParams = sanitize(parameters)
+        
         let content = """
         
         Timestamp: \(Date())
         Event: \(event)
-        Parameters: \(parameters)
+        Parameters: \(sanitizedParams)
         Message: \(message)
         -------------------------
         """
@@ -313,18 +341,17 @@ public extension RecordingManager {
     }
     
     func logAppEvent(_ message: String) {
-        // Ensure folder exists
+        let sanitizedMessage = sanitize(["message": message])
+        
         _ = ensureFolderExists("AppLogs")
         
-        // Prepare log entry
         let logEntry = """
         
         Timestamp: \(Date())
-        Message: \(message)
+        Message: \(sanitizedMessage)
         ----------------------------------------
         """
         
-        // Append to log file
         writeAppend(logEntry, to: "AppLogs", named: "AppActivityLog.txt")
     }
     
@@ -344,7 +371,8 @@ public extension RecordingManager {
         var content = "Event: \(event)\nTimestamp: \(formatter.string(from: Date()))\n\n"
         
         if let response = response, !response.isEmpty {
-            content += "Response:\n\(response)\n\n"
+            let sanitizedResponse = sanitize(response)
+            content += "Response:\n\(sanitizedResponse)\n\n"
         }
         
         if let error = error, !error.isEmpty {
