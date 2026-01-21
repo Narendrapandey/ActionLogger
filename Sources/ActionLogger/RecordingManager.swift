@@ -136,6 +136,8 @@ extension RecordingManager {
         responseDate: Date,
         statusCode: Int,
         error: String? = nil,
+        headers: [String: String]?,
+        hmacDebugLog: String? = nil,
         appVersion: String
     ) async {
         // Ensure Responses folder exists
@@ -181,6 +183,20 @@ extension RecordingManager {
             } else {
                 content += "\nParameters:\n\(sanitizedParams)\n"
             }
+        }
+        
+        // Log headers
+        if let headers = headers {
+            if let jsonData = try? JSONSerialization.data(withJSONObject: headers, options: .prettyPrinted),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                content += "\nHeaders:\n\(jsonString)\n"
+            } else {
+                content += "\nHeaders:\n\(headers)\n"
+            }
+        }
+        
+        if let hmacDebugLog, !hmacDebugLog.isEmpty {
+            content += "\nHMAC Debug Info:\n\(hmacDebugLog)\n"
         }
         
         // Log response
