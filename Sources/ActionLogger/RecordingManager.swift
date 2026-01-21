@@ -174,6 +174,7 @@ extension RecordingManager {
         Duration: \(durationString)
 
         App Version: \(appVersion)
+        
         """
         
         let sanitizedParams = parameters.map { sanitize($0) } as? [String: Any] ?? [:]
