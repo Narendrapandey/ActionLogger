@@ -130,6 +130,7 @@ extension RecordingManager {
     
     public func logResponse(
         _ apiName: String,
+        traceId: String,
         parameters: [String: Any]?,
         requestTime: Date,
         response: Any?,
@@ -164,13 +165,15 @@ extension RecordingManager {
         // Start composing log
         var content = """
         API: \(apiName)
+        Trace ID: \(traceId)
+
         Status Code: \(statusCode)
-        
+
         Request Time: \(requestTimestamp)
         Response Time: \(responseTimestamp)
         Duration: \(durationString)
+
         App Version: \(appVersion)
-        
         """
         
         let sanitizedParams = parameters.map { sanitize($0) } as? [String: Any] ?? [:]
