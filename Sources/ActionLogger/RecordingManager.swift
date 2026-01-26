@@ -21,7 +21,8 @@ public actor RecordingManager {
     private let fileManager = FileManager.default
     private let baseURL: URL
     private let baseFolderName = "Recording"
-    
+    private var lastLoggedScreenName: String?
+
     // MARK: - Sensitive Data Sanitizer (GLOBAL)
     
     private let sensitiveSubstrings = [
@@ -407,12 +408,34 @@ public extension RecordingManager {
         }
     }
     
-    func logUITestAction(viewType: ViewType, identifier: String, into: String? = nil) async {
-        let _ = ensureFolderExists("UITests")
-        let content = getCommandContent(for: viewType, identifier: identifier, into: into)
+    func logUITestAction(
+        viewType: ViewType = .Button,
+        identifier: String,
+        into: String? = nil,
+        screenName: String
+    ) async {
+        
+        _ = ensureFolderExists("UITests")
+        
+        var content = ""
+        
+        // Add screen header only when screen changes
+        if lastLoggedScreenName != screenName {
+            content += "\n// ===== \(screenName) =====\n"
+            lastLoggedScreenName = screenName
+        }
+        
+        let command = getCommandContent(
+            for: viewType,
+            identifier: identifier,
+            into: into
+        )
+        
+        content += command
+        
         writeAppend(content, to: "UITests", named: "UITestsLogs.txt")
     }
-    
+
     private func writeAppend(_ content: String, to folder: String, named filename: String) {
         let folderURL = ensureFolderExists(folder)
         let fileURL = folderURL.appendingPathComponent(filename)
