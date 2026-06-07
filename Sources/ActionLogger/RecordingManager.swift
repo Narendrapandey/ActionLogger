@@ -361,6 +361,24 @@ public extension RecordingManager {
         writeAppend(content, to: "Chat", named: "ChatAllLogs.txt")
     }
     
+    func logVoiceEmit(message: String, event: String, parameters: [String: Any]) {
+        
+        let _ = ensureFolderExists("Voice")
+        
+        let sanitizedParams = sanitize(parameters)
+        
+        let content = """
+        
+        Timestamp: \(Date())
+        Event: \(event)
+        Parameters: \(sanitizedParams)
+        Message: \(message)
+        -------------------------
+        """
+        
+        writeAppend(content, to: "Voice", named: "VoiceAllLogs.txt")
+    }
+    
     func logAppEvent(_ message: String) {
         let sanitizedMessage = sanitize(["message": message])
         
